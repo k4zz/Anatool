@@ -5,6 +5,10 @@ python:
 install:
   - pip install -r requirements.txt
   - pip install pyinstaller
+script:
+  - echo "Done"
+before_deploy:
+  - pyinstaller --onefile --noconsole --name Anatool main.py
 deploy:
   provider: releases
   api_key: $RELEASE_TOKEN
