@@ -13,5 +13,5 @@ deploy:
   provider: releases
   api_key: $RELEASE_TOKEN
   file: "dist/*.exe"
-  cleanup: false
+  skip_cleanup: true
   draft: true
