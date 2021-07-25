@@ -1,0 +1,12 @@
+language: python
+python:
+  - 3.9
+install:
+  - pip install -r requirements.txt
+  - pip install pyinstaller
+deploy:
+  provider: releases
+  api_key: $RELEASE_TOKEN
+  file: "dist/*.exe"
+  skip_cleanup: true
+  draft: true
