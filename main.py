@@ -4,12 +4,12 @@ import openpyxl
 import logging
 import queue
 import tkinter as tk
-from tkinter import ttk, VERTICAL, HORIZONTAL, N, S, E, W, Label, Button, Entry, Checkbutton, IntVar
+from tkinter import ttk, VERTICAL, HORIZONTAL, N, S, E, W, Label, Button, Entry, IntVar
 from tkinter import filedialog as fd
 from tkinter.scrolledtext import ScrolledText
 
+# Logger
 logger = logging.getLogger(__name__)
-debug_state = any
 
 
 class QueueHandler(logging.Handler):
@@ -21,10 +21,12 @@ class QueueHandler(logging.Handler):
         self.log_queue.put(record)
 
 
-class Protokol:
-    def __init__(self, number, names):
+# Data containers
+class Protocol:
+    def __init__(self, number, names, row):
         self.number = number
         self.names = names
+        self.row = row
 
     def __repr__(self):
         return f"Protokol(number={self.number}, names={self.names})"
@@ -33,10 +35,12 @@ class Protokol:
         self.names.extend(name)
 
 
-class Zestawienie:
-    def __init__(self, name, numbers):
+class Collation:
+    def __init__(self, name, numbers, row):
         self.name = name
         self.numbers = numbers
+        self.row = row
+        self.amount_of_checked = 0
 
     def __repr__(self):
         return f"Zestawienie(name='{self.name}', numbers='{self.numbers})"
@@ -44,60 +48,64 @@ class Zestawienie:
     def add_positions(self, positions):
         self.numbers.extend(positions)
 
+    def number_checked(self):
+        self.amount_of_checked += 1
 
+
+# UI
 class PathUI:
     def __init__(self, frame):
-        self.protokol_path = tk.StringVar()
-        self.zestawienie_path = tk.StringVar()
+        self.protocol_path = tk.StringVar()
+        self.collation_path = tk.StringVar()
         self.frame = frame
         Label(self.frame, text='Protokół').grid(column=0, row=0, sticky=W)
         Label(self.frame, text='Zestawienie').grid(column=0, row=1, sticky=W)
-        Entry(self.frame, textvariable=self.protokol_path, width=60).grid(column=1, row=0, sticky=(W, E))
-        Entry(self.frame, textvariable=self.zestawienie_path, width=60).grid(column=1, row=1, sticky=(W, E))
-        Button(self.frame, text='...', command=self.open_protokol).grid(column=2, row=0, sticky=E)
-        Button(self.frame, text='...', command=self.open_zestawienie).grid(column=2, row=1, sticky=E)
+        Entry(self.frame, textvariable=self.protocol_path, width=60).grid(column=1, row=0, sticky=(W, E))
+        Entry(self.frame, textvariable=self.collation_path, width=60).grid(column=1, row=1, sticky=(W, E))
+        Button(self.frame, text='...', command=self.open_protocol).grid(column=2, row=0, sticky=E)
+        Button(self.frame, text='...', command=self.open_collation).grid(column=2, row=1, sticky=E)
         Button(self.frame, text='Analiza', command=self.analyze).grid(column=0, row=2, columnspan=3, sticky=(W, E))
 
-    def open_protokol(self):
+    def open_protocol(self):
         filetypes = (
             ('Excel', '*.xlsx'),
             ('All files', '*.*')
         )
 
-        self.protokol_path.set(fd.askopenfilename(
+        self.protocol_path.set(fd.askopenfilename(
             title='Open a file',
             initialdir='/',
             filetypes=filetypes))
 
-    def open_zestawienie(self):
+    def open_collation(self):
         filetypes = (
             ('Excel', '*.xlsx'),
             ('All files', '*.*')
         )
 
-        self.zestawienie_path.set(fd.askopenfilename(
+        self.collation_path.set(fd.askopenfilename(
             title='Open a file',
             initialdir='/',
             filetypes=filetypes))
 
     def analyze(self):
         ready = True
-        if self.protokol_path.get() == "":
+        if self.protocol_path.get() == "":
             logger.log(logging.ERROR, "Brakująca ścieżka do protokołu")
             ready = False
-        elif not self.protokol_path.get().endswith('.xlsx'):
+        elif not self.protocol_path.get().endswith('.xlsx'):
             logger.log(logging.ERROR, "Podana sciezka dla protokolu nie jest plikiem excel (.xlsx)")
             ready = False
 
-        if self.zestawienie_path.get() == "":
+        if self.collation_path.get() == "":
             logger.log(logging.ERROR, "Brakująca ścieżka do zestawienia")
             ready = False
-        elif not self.zestawienie_path.get().endswith('.xlsx'):
+        elif not self.collation_path.get().endswith('.xlsx'):
             logger.log(logging.ERROR, "Podana sciezka dla zestawienia nie jest plikiem excel (.xlsx)")
             ready = False
 
         if ready:
-            Analyzer(self.protokol_path.get(), self.zestawienie_path.get())
+            Analyzer(self.protocol_path.get(), self.collation_path.get())
 
 
 class ConsoleUI:
@@ -105,7 +113,6 @@ class ConsoleUI:
         self.frame = frame
         self.scrolled_text = ScrolledText(frame, state='disabled', height=30, width=150)
         self.scrolled_text.grid(row=0, column=0, sticky=(N, S, W, E))
-        #self.cb_debug = Checkbutton(frame, text='Debug', variable=debug_state).grid(row=1, column=0, sticky=W)
         self.log_queue = queue.Queue()
         self.queue_handler = QueueHandler(self.log_queue)
         logger.addHandler(self.queue_handler)
@@ -119,7 +126,6 @@ class ConsoleUI:
         self.scrolled_text.configure(state='normal')
         self.scrolled_text.insert(tk.END, msg + '\n', record.levelname)
         self.scrolled_text.configure(state='disabled')
-        # Autoscroll to the bottom
         self.scrolled_text.yview(tk.END)
 
     def poll_log_queue(self):
@@ -137,9 +143,9 @@ class App:
 
     def __init__(self, root):
         self.root = root
-        root.title('Anatool')
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
+        self.root.title('Anatool')
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
         vertical_pane = ttk.PanedWindow(self.root, orient=VERTICAL)
         vertical_pane.grid(row=0, column=0, sticky="nsew")
         horizontal_pane = ttk.PanedWindow(vertical_pane, orient=HORIZONTAL)
@@ -158,44 +164,47 @@ class App:
         self.console = ConsoleUI(console_frame)
 
 
-def Cmd(argv):
-    first = ''
-    second = ''
+class Cmd:
+    def __init__(self, argv):
+        self.protocol = ''
+        self.collation = ''
+        self.argv = argv
 
-    try:
-        opts, args = getopt.getopt(argv, "hp:z:", ["protokol=", "zestawienie="])
-    except getopt.GetoptError:
-        print('main.py -p <sciezka_do_protokolu> -z <sciezka_do_zestawienia>')
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
+        try:
+            opts, args = getopt.getopt(self.argv, "hp:z:", ["protokol=", "zestawienie="])
+        except getopt.GetoptError:
             print('main.py -p <sciezka_do_protokolu> -z <sciezka_do_zestawienia>')
-            sys.exit()
-        elif opt in ("-p", "--protokol"):
-            if arg.endswith('.xlsx'):
-                first = arg
-            else:
-                print("Podana sciezka dla protokolu nie jest plikiem excel (.xlsx)")
+            sys.exit(2)
+        for opt, arg in opts:
+            if opt == '-h':
+                print('main.py -p <sciezka_do_protokolu> -z <sciezka_do_zestawienia>')
                 sys.exit()
-        elif opt in ("-z", "--zestawienie"):
-            if arg.endswith('.xlsx'):
-                second = arg
-            else:
-                print("Podana sciezka dla protokolu nie jest plikiem excel (.xlsx)")
-                sys.exit()
+            elif opt in ("-p", "--protokol"):
+                if arg.endswith('.xlsx'):
+                    self.protocol = arg
+                else:
+                    print("Podana sciezka dla protokolu nie jest plikiem excel (.xlsx)")
+                    sys.exit()
+            elif opt in ("-z", "--zestawienie"):
+                if arg.endswith('.xlsx'):
+                    self.collation = arg
+                else:
+                    print("Podana sciezka dla protokolu nie jest plikiem excel (.xlsx)")
+                    sys.exit()
 
-    Analyzer(first, second)
+        Analyzer(self.protocol, self.collation)
+
 
 class Analyzer:
-    def __init__(self, protokol_path, zestawienie_path):
-        self.protokol_path = protokol_path
-        self.zestawienie_path = zestawienie_path
+    def __init__(self, protocol_path, collation_path):
+        self.protocol_path = protocol_path
+        self.collation_path = collation_path
 
-        self.sheet_protokol = any
-        self.sheet_zestawienie = any
+        self.sheet_protocol = any
+        self.sheet_collation = any
 
-        self.zestawienie = {}
-        self.protokol = {}
+        self.collation = {}
+        self.protocol = {}
 
         logger.log(logging.INFO, "----Analiza----")
         if not self.get_sheets():
@@ -214,85 +223,92 @@ class Analyzer:
 
     def get_sheets(self):
         try:
-            wb_protokol = openpyxl.open(self.protokol_path)
+            wb_protocol = openpyxl.open(self.protocol_path)
         except:
             logger.log(logging.ERROR, "Nie można otworzyć pliku protokołu")
             return False
 
         try:
-            wb_zestawienie = openpyxl.open(self.zestawienie_path)
+            wb_collation = openpyxl.open(self.collation_path)
         except:
             logger.log(logging.ERROR, "Nie można otworzyć pliku zestawienia")
             return False
 
-
-        self.sheet_protokol = wb_protokol[wb_protokol.sheetnames[0]]
-        self.sheet_zestawienie = wb_zestawienie[wb_zestawienie.sheetnames[0]]
+        self.sheet_protocol = wb_protocol[wb_protocol.sheetnames[0]]
+        self.sheet_collation = wb_collation[wb_collation.sheetnames[0]]
 
         return True
 
     def get_objects(self):
-        rowsFromSheet = self.sheet_protokol.iter_rows()
-        rows = iter(rowsFromSheet)
+
+        # Protocol
+        rows_from_sheet = self.sheet_protocol.iter_rows()
+        rows = iter(rows_from_sheet)
         for row in rows:
             number = str(row[0].value)
             if number == 'None':
                 continue
 
             str_names = row[2].value
+            # Split string to list
             split_names = str_names.split('\n')
+            # Remove white spaces
+            split_names = [n.strip() for n in split_names]
+            # Remove empty strings (new lines)
+            split_names = [n for n in split_names if n != '']
 
-            # fix for spaces
-            temp_list = []
-            for name in split_names:
-                if name.endswith(' '):
-                    name = name.rstrip()
-                if name == '':
-                    continue
-                temp_list.append(name)
-            split_names = temp_list
-
-            if number in self.protokol:
-                self.protokol[number].add_names(split_names)
+            if number in self.protocol:
+                new_list = self.protocol[number].names
+                new_list.extend(split_names)
+                new_list = list(dict.fromkeys(new_list))
+                self.protocol[number].names = new_list
             else:
-                self.protokol[number] = Protokol(number, split_names)
+                self.protocol[number] = Protocol(number, split_names, row[0].row)
 
-        currentRow = 0
-        try:
-            rowsFromSheet = self.sheet_zestawienie.iter_rows()
-            rows = iter(rowsFromSheet)
-            for row in rows:
-                currentRow += 1
-                name = row[1].value
-                strPlotNumbers = row[3].value
-                listPlotNumbers = strPlotNumbers.split(", ")
-                if name in self.zestawienie:
-                    self.zestawienie[name].add_positions(listPlotNumbers)
+        # Collation
+        current_row = 0
+        rows_from_sheet = self.sheet_collation.iter_rows()
+        rows = iter(rows_from_sheet)
+        for row in rows:
+            current_row += 1
+            try:
+                name = row[1].value.rstrip()
+                str_plot_numbers = row[2].value
+                list_plot_numbers = str_plot_numbers.split(",")
+                list_plot_numbers = [n.strip() for n in list_plot_numbers]
+                if name in self.collation:
+                    self.collation[name].add_positions(list_plot_numbers)
                 else:
-                    self.zestawienie[name] = Zestawienie(row[1].value, listPlotNumbers)
-        except:
-            logger.log(logging.ERROR, "Błąd parsowania pliku zestawienia dla lini  " + str(currentRow))
-            return False
+                    self.collation[name] = Collation(row[1].value, list_plot_numbers, row[0].row)
+            except:
+                logger.log(logging.ERROR, "Błąd parsowania pliku zestawienia dla wiersza " + str(current_row))
 
         return True
 
     def analyze(self):
-        for num, pozycja in self.protokol.items():
-            for nazwisko in pozycja.names:
+        for num, position in self.protocol.items():
+            for name in position.names:
                 not_found = -2
 
-                if nazwisko in self.zestawienie:
+                if name in self.collation:
                     not_found = -1
 
-                    if num in self.zestawienie[nazwisko].numbers:
+                    if num in self.collation[name].numbers:
                         not_found = 0
+                        self.collation[name].number_checked()
 
                 if not_found == -1:
-                    msg = "Brakujaca pozycja " + pozycja.number + " dla nazwiska " + nazwisko + " w zestawieniu."
+                    msg = "Brakujaca pozycja " + position.number + " dla nazwiska " + name + " w zestawieniu."
                     logger.log(logging.ERROR, msg)
                 elif not_found == -2:
-                    msg = "Brakujace nazwisko " + nazwisko + " w zestawieniu" + "; Pozycja w protokole: " + pozycja.number + "."
+                    msg = "Brakujace nazwisko " + name + " w zestawieniu" + "; " \
+                          + "Pozycja w protokole: " + position.number + "."
                     logger.log(logging.ERROR, msg)
+
+        for name, collation in self.collation.items():
+            if len(collation.numbers) > collation.amount_of_checked:
+                logger.log(logging.ERROR, "Nadmiarowa pozycja w zestawieniu; Nazwa: " + collation.name + "; Linia: " +
+                           str(collation.row))
 
 
 if __name__ == "__main__":
