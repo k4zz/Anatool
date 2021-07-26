@@ -105,7 +105,7 @@ class ConsoleUI:
         self.frame = frame
         self.scrolled_text = ScrolledText(frame, state='disabled', height=30, width=150)
         self.scrolled_text.grid(row=0, column=0, sticky=(N, S, W, E))
-        self.cb_debug = Checkbutton(frame, text='Debug', variable=debug_state).grid(row=1, column=0, sticky=W)
+        #self.cb_debug = Checkbutton(frame, text='Debug', variable=debug_state).grid(row=1, column=0, sticky=W)
         self.log_queue = queue.Queue()
         self.queue_handler = QueueHandler(self.log_queue)
         logger.addHandler(self.queue_handler)
@@ -198,9 +198,18 @@ class Analyzer:
         self.protokol = {}
 
         logger.log(logging.INFO, "----Analiza----")
-        self.get_sheets()
-        self.get_objects()
-        self.analyze()
+        if not self.get_sheets():
+            logger.log(logging.INFO, "----Analiz zakończona błędem----")
+            return
+
+        if not self.get_objects():
+            logger.log(logging.INFO, "----Analiz zakończona błędem----")
+            return
+
+        if not self.analyze():
+            logger.log(logging.INFO, "----Analiz zakończona błędem----")
+            return
+
         logger.log(logging.INFO, "----Koniec analizy----")
 
     def get_sheets(self):
@@ -208,20 +217,21 @@ class Analyzer:
             wb_protokol = openpyxl.open(self.protokol_path)
         except:
             logger.log(logging.ERROR, "Nie można otworzyć pliku protokołu")
-            sys.exit()
+            return False
 
         try:
             wb_zestawienie = openpyxl.open(self.zestawienie_path)
         except:
             logger.log(logging.ERROR, "Nie można otworzyć pliku zestawienia")
-            sys.exit()
+            return False
 
 
         self.sheet_protokol = wb_protokol[wb_protokol.sheetnames[0]]
         self.sheet_zestawienie = wb_zestawienie[wb_zestawienie.sheetnames[0]]
 
+        return True
+
     def get_objects(self):
-        # try:
         rowsFromSheet = self.sheet_protokol.iter_rows()
         rows = iter(rowsFromSheet)
         for row in rows:
@@ -246,9 +256,6 @@ class Analyzer:
                 self.protokol[number].add_names(split_names)
             else:
                 self.protokol[number] = Protokol(number, split_names)
-        # except:
-        #     print("Unexpected error:", sys.exc_info()[0])
-        #     logger.log(logging.ERROR, "Błąd parsowania pliku protokołu")
 
         currentRow = 0
         try:
@@ -264,7 +271,10 @@ class Analyzer:
                 else:
                     self.zestawienie[name] = Zestawienie(row[1].value, listPlotNumbers)
         except:
-            logger.log(logging.ERROR, "Błąd parsowania pliku zestawienia dla lini  " + currentRow)
+            logger.log(logging.ERROR, "Błąd parsowania pliku zestawienia dla lini  " + str(currentRow))
+            return False
+
+        return True
 
     def analyze(self):
         for num, pozycja in self.protokol.items():
