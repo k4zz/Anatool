@@ -204,8 +204,18 @@ class Analyzer:
         logger.log(logging.INFO, "----Koniec analizy----")
 
     def get_sheets(self):
-        wb_protokol = openpyxl.open(self.protokol_path)
-        wb_zestawienie = openpyxl.open(self.zestawienie_path)
+        try:
+            wb_protokol = openpyxl.open(self.protokol_path)
+        except:
+            logger.log(logging.ERROR, "Nie można otworzyć pliku protokołu")
+            sys.exit()
+
+        try:
+            wb_zestawienie = openpyxl.open(self.zestawienie_path)
+        except:
+            logger.log(logging.ERROR, "Nie można otworzyć pliku zestawienia")
+            sys.exit()
+
 
         self.sheet_protokol = wb_protokol[wb_protokol.sheetnames[0]]
         self.sheet_zestawienie = wb_zestawienie[wb_zestawienie.sheetnames[0]]
@@ -240,10 +250,12 @@ class Analyzer:
         #     print("Unexpected error:", sys.exc_info()[0])
         #     logger.log(logging.ERROR, "Błąd parsowania pliku protokołu")
 
+        currentRow = 0
         try:
             rowsFromSheet = self.sheet_zestawienie.iter_rows()
             rows = iter(rowsFromSheet)
             for row in rows:
+                currentRow += 1
                 name = row[1].value
                 strPlotNumbers = row[3].value
                 listPlotNumbers = strPlotNumbers.split(", ")
@@ -252,7 +264,7 @@ class Analyzer:
                 else:
                     self.zestawienie[name] = Zestawienie(row[1].value, listPlotNumbers)
         except:
-            logger.log(logging.ERROR, "Błąd parsowania pliku zestawienia")
+            logger.log(logging.ERROR, "Błąd parsowania pliku zestawienia dla lini  " + currentRow)
 
     def analyze(self):
         for num, pozycja in self.protokol.items():
