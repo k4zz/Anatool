@@ -40,16 +40,12 @@ class Collation:
         self.name = name
         self.numbers = numbers
         self.row = row
-        self.amount_of_checked = 0
 
     def __repr__(self):
         return f"Zestawienie(name='{self.name}', numbers='{self.numbers})"
 
     def add_positions(self, positions):
         self.numbers.extend(positions)
-
-    def number_checked(self):
-        self.amount_of_checked += 1
 
 
 # UI
@@ -274,8 +270,12 @@ class Analyzer:
             try:
                 name = row[1].value.rstrip()
                 str_plot_numbers = row[2].value
+                # Split string to list
                 list_plot_numbers = str_plot_numbers.split(",")
+                # Remove white spaces
                 list_plot_numbers = [n.strip() for n in list_plot_numbers]
+                # Remove empty strings (new lines)
+                list_plot_numbers = [n for n in list_plot_numbers if n != '']
                 if name in self.collation:
                     self.collation[name].add_positions(list_plot_numbers)
                 else:
@@ -295,7 +295,6 @@ class Analyzer:
 
                     if num in self.collation[name].numbers:
                         not_found = 0
-                        self.collation[name].number_checked()
 
                 if not_found == -1:
                     msg = "Brakujaca pozycja " + position.number + " dla nazwiska " + name + " w zestawieniu."
@@ -306,9 +305,9 @@ class Analyzer:
                     logger.log(logging.ERROR, msg)
 
         for name, collation in self.collation.items():
-            if len(collation.numbers) > collation.amount_of_checked:
-                logger.log(logging.ERROR, "Nadmiarowa pozycja w zestawieniu; Nazwa: " + collation.name + "; Linia: " +
-                           str(collation.row))
+            for num in collation.numbers:
+                if num not in self.protocol:
+                    logger.log(logging.ERROR, "Nadmiarowa pozycja " + str(num) + " w zestawieniu; Linia: " + str(collation.row))
 
 
 if __name__ == "__main__":
