@@ -4,7 +4,7 @@ import openpyxl
 import logging
 import queue
 import tkinter as tk
-from tkinter import ttk, VERTICAL, HORIZONTAL, N, S, E, W, Label, Button, Entry, IntVar
+from tkinter import ttk, VERTICAL, HORIZONTAL, N, S, E, W, LEFT, RIGHT, Label, Button, Entry, IntVar, StringVar
 from tkinter import filedialog as fd
 from tkinter.scrolledtext import ScrolledText
 
@@ -48,12 +48,36 @@ class Collation:
         self.numbers.extend(positions)
 
 
+class Settings:
+    def __init__(self):
+        self.protocol_number_column_data = StringVar(value="A")
+        self.protocol_names_column_data = StringVar(value="C")
+        self.collation_name_column_data = StringVar(value="B")
+        self.collation_numbers_column_data = StringVar(value="C")
+
+    def convert_to_iterator(self, string):
+        return ord(string.lower()) - 97
+
+    def protocol_number_column(self):
+        return self.convert_to_iterator(self.protocol_number_column_data.get())
+
+    def protocol_names_column(self):
+        return self.convert_to_iterator(self.protocol_names_column_data.get())
+
+    def collation_name_column(self):
+        return self.convert_to_iterator(self.collation_name_column_data.get())
+
+    def collation_numbers_column(self):
+        return self.convert_to_iterator(self.collation_numbers_column_data.get())
+
+
 # UI
 class PathUI:
-    def __init__(self, frame):
+    def __init__(self, frame, settings):
         self.protocol_path = tk.StringVar()
         self.collation_path = tk.StringVar()
         self.frame = frame
+        self.settings = settings
         Label(self.frame, text='Protokół').grid(column=0, row=0, sticky=W)
         Label(self.frame, text='Zestawienie').grid(column=0, row=1, sticky=W)
         Entry(self.frame, textvariable=self.protocol_path, width=60).grid(column=1, row=0, sticky=(W, E))
@@ -101,7 +125,7 @@ class PathUI:
             ready = False
 
         if ready:
-            Analyzer(self.protocol_path.get(), self.collation_path.get())
+            Analyzer(self.protocol_path.get(), self.collation_path.get(), self.settings)
 
 
 class ConsoleUI:
@@ -135,29 +159,72 @@ class ConsoleUI:
         self.frame.after(100, self.poll_log_queue)
 
 
+class SettingsUI:
+    def __init__(self, frame, settings):
+        self.frame = frame
+        self.settings = settings
+
+        validate_callback = self.frame.register(self.validate_input)
+
+        column_names_frame = ttk.LabelFrame(self.frame, text="Kolumny")
+        column_names_frame.columnconfigure(1, weight=1)
+        column_names_frame.columnconfigure(2, weight=1)
+        column_names_frame.grid(padx=10, pady=10, sticky=(W, E))
+
+        Label(column_names_frame, text='Protokół').grid(column=1, row=0)
+        Label(column_names_frame, text='Zestawienie').grid(column=2, row=0)
+        Label(column_names_frame, text='Imię/Imiona').grid(column=0, row=1)
+        Label(column_names_frame, text='Number/y').grid(column=0, row=2)
+        Entry(column_names_frame, textvariable=self.settings.protocol_names_column_data, validate="key",
+                    validatecommand=(validate_callback, '%S')).grid(column=1, row=1, sticky=(E, W))
+        Entry(column_names_frame, textvariable=self.settings.collation_name_column_data, validate="key",
+                    validatecommand=(validate_callback, '%S')).grid(column=2, row=1, sticky=(E, W))
+        Entry(column_names_frame, textvariable=self.settings.protocol_number_column_data, validate="key",
+                    validatecommand=(validate_callback, '%S')).grid(column=1, row=2, sticky=(E, W))
+        Entry(column_names_frame, textvariable=self.settings.collation_numbers_column_data, validate="key",
+                    validatecommand=(validate_callback, '%S')).grid(column=2, row=2, sticky=(E, W))
+
+    def validate_input(self, input_string):
+        if input_string.isalpha():
+            return True
+        else:
+            return False
+
+
 class App:
 
     def __init__(self, root):
+        self.settings = Settings()
+
         self.root = root
         self.root.title('Anatool')
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         vertical_pane = ttk.PanedWindow(self.root, orient=VERTICAL)
         vertical_pane.grid(row=0, column=0, sticky="nsew")
+
         horizontal_pane = ttk.PanedWindow(vertical_pane, orient=HORIZONTAL)
         vertical_pane.add(horizontal_pane)
 
-        path_frame = ttk.LabelFrame(horizontal_pane, text="Ścieżki")
+        left_pane = ttk.PanedWindow(horizontal_pane, orient=VERTICAL)
+        horizontal_pane.add(left_pane)
+
+        path_frame = ttk.LabelFrame(left_pane, text="Ścieżki")
         path_frame.columnconfigure(1, weight=1)
-        horizontal_pane.add(path_frame, weight=1)
+        left_pane.add(path_frame)
+
+        settings_frame = ttk.LabelFrame(left_pane, text="Ustawienia")
+        settings_frame.columnconfigure(0, weight=1)
+        left_pane.add(settings_frame)
 
         console_frame = ttk.LabelFrame(horizontal_pane, text="Log")
         console_frame.columnconfigure(0, weight=1)
         console_frame.rowconfigure(0, weight=1)
         horizontal_pane.add(console_frame, weight=1)
 
-        self.path = PathUI(path_frame)
+        self.path = PathUI(path_frame, self.settings)
         self.console = ConsoleUI(console_frame)
+        self.settings = SettingsUI(settings_frame, self.settings)
 
 
 class Cmd:
@@ -192,9 +259,10 @@ class Cmd:
 
 
 class Analyzer:
-    def __init__(self, protocol_path, collation_path):
+    def __init__(self, protocol_path, collation_path, settings):
         self.protocol_path = protocol_path
         self.collation_path = collation_path
+        self.settings = settings
 
         self.sheet_protocol = any
         self.sheet_collation = any
@@ -241,11 +309,11 @@ class Analyzer:
         rows_from_sheet = self.sheet_protocol.iter_rows()
         rows = iter(rows_from_sheet)
         for row in rows:
-            number = str(row[0].value)
+            number = str(row[self.settings.protocol_number_column()].value)
             if number == 'None':
                 continue
 
-            str_names = row[2].value
+            str_names = row[self.settings.protocol_names_column()].value
             # Split string to list
             split_names = str_names.split('\n')
             # Remove white spaces
@@ -259,7 +327,7 @@ class Analyzer:
                 new_list = list(dict.fromkeys(new_list))
                 self.protocol[number].names = new_list
             else:
-                self.protocol[number] = Protocol(number, split_names, row[0].row)
+                self.protocol[number] = Protocol(number, split_names, row[self.settings.protocol_number_column()].row)
 
         # Collation
         current_row = 0
@@ -268,8 +336,8 @@ class Analyzer:
         for row in rows:
             current_row += 1
             try:
-                name = row[1].value.rstrip()
-                str_plot_numbers = row[2].value
+                name = row[self.settings.collation_name_column()].value.rstrip()
+                str_plot_numbers = row[self.settings.collation_numbers_column()].value
                 # Split string to list
                 list_plot_numbers = str_plot_numbers.split(",")
                 # Remove white spaces
@@ -279,7 +347,8 @@ class Analyzer:
                 if name in self.collation:
                     self.collation[name].add_positions(list_plot_numbers)
                 else:
-                    self.collation[name] = Collation(row[1].value, list_plot_numbers, row[0].row)
+                    self.collation[name] = Collation(row[self.settings.collation_name_column()].value,
+                                                     list_plot_numbers, row[self.settings.collation_name_column()].row)
             except:
                 logger.log(logging.ERROR, "Błąd parsowania pliku zestawienia dla wiersza " + str(current_row))
 
@@ -307,7 +376,8 @@ class Analyzer:
         for name, collation in self.collation.items():
             for num in collation.numbers:
                 if num not in self.protocol:
-                    logger.log(logging.ERROR, "Nadmiarowa pozycja " + str(num) + " w zestawieniu; Linia: " + str(collation.row))
+                    logger.log(logging.ERROR,
+                               "Nadmiarowa pozycja " + str(num) + " w zestawieniu; Linia: " + str(collation.row))
 
 
 if __name__ == "__main__":
