@@ -174,7 +174,7 @@ class SettingsUI:
         Label(column_names_frame, text='Protokół').grid(column=1, row=0)
         Label(column_names_frame, text='Zestawienie').grid(column=2, row=0)
         Label(column_names_frame, text='Imię/Imiona').grid(column=0, row=1)
-        Label(column_names_frame, text='Number/y').grid(column=0, row=2)
+        Label(column_names_frame, text='Numer/y').grid(column=0, row=2)
         Entry(column_names_frame, textvariable=self.settings.protocol_names_column_data, validate="key",
                     validatecommand=(validate_callback, '%S')).grid(column=1, row=1, sticky=(E, W))
         Entry(column_names_frame, textvariable=self.settings.collation_name_column_data, validate="key",
@@ -272,15 +272,15 @@ class Analyzer:
 
         logger.log(logging.INFO, "----Analiza----")
         if not self.get_sheets():
-            logger.log(logging.INFO, "----Analiz zakończona błędem----")
+            logger.log(logging.INFO, "----Analiza zakończona błędem----")
             return
 
         if not self.get_objects():
-            logger.log(logging.INFO, "----Analiz zakończona błędem----")
+            logger.log(logging.INFO, "----Analiza zakończona błędem----")
             return
 
         if not self.analyze():
-            logger.log(logging.INFO, "----Analiz zakończona błędem----")
+            logger.log(logging.INFO, "----Analiza zakończona błędem----")
             return
 
         logger.log(logging.INFO, "----Koniec analizy----")
@@ -366,7 +366,7 @@ class Analyzer:
                         not_found = 0
 
                 if not_found == -1:
-                    msg = "Brakujaca pozycja " + position.number + " dla nazwiska " + name + " w zestawieniu."
+                    msg = "Brakujaca pozycja " + position.number + " z protokołu dla nazwiska " + name + " w zestawieniu.; Linia w zestawieniu: " + str(self.collation[name].row)
                     logger.log(logging.ERROR, msg)
                 elif not_found == -2:
                     msg = "Brakujace nazwisko " + name + " w zestawieniu" + "; " \
@@ -377,7 +377,10 @@ class Analyzer:
             for num in collation.numbers:
                 if num not in self.protocol:
                     logger.log(logging.ERROR,
-                               "Nadmiarowa pozycja " + str(num) + " w zestawieniu; Linia: " + str(collation.row))
+                               "Nieistniejąca pozycja " + str(num) + " protokołu w zestawieniu; Linia w protokole: " + str(collation.row))
+                elif name not in self.protocol[num].names:
+                    logger.log(logging.ERROR,
+                               "Nazwisko " + name + " nie widnieje w protokole dla pozycji " + str(num) + " w zestawieniu; Linia w protokole: " + str(collation.row))
 
 
 if __name__ == "__main__":
