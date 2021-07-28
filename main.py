@@ -48,6 +48,7 @@ class Collation:
         self.numbers.extend(positions)
 
 
+
 class Settings:
     def __init__(self):
         self.protocol_number_column_data = StringVar(value="A")
@@ -80,8 +81,10 @@ class PathUI:
         self.settings = settings
         Label(self.frame, text='Protokół').grid(column=0, row=0, sticky=W)
         Label(self.frame, text='Zestawienie').grid(column=0, row=1, sticky=W)
-        Entry(self.frame, textvariable=self.protocol_path, width=60).grid(column=1, row=0, sticky=(W, E))
-        Entry(self.frame, textvariable=self.collation_path, width=60).grid(column=1, row=1, sticky=(W, E))
+        proto = Entry(self.frame, textvariable=self.protocol_path, width=60)
+        proto.grid(column=1, row=0, sticky=(W, E))
+        colla = Entry(self.frame, textvariable=self.collation_path, width=60)
+        colla.grid(column=1, row=1, sticky=(W, E))
         Button(self.frame, text='...', command=self.open_protocol).grid(column=2, row=0, sticky=E)
         Button(self.frame, text='...', command=self.open_collation).grid(column=2, row=1, sticky=E)
         Button(self.frame, text='Analiza', command=self.analyze).grid(column=0, row=2, columnspan=3, sticky=(W, E))
@@ -125,7 +128,7 @@ class PathUI:
             ready = False
 
         if ready:
-            Analyzer(self.protocol_path.get(), self.collation_path.get(), self.settings)
+            Analyzer(self.protocol_path.get(), self.collation_path.get(), self.settings).analyze_normal_mode()
 
 
 class ConsoleUI:
@@ -200,6 +203,7 @@ class App:
         self.root.title('Anatool')
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
+
         vertical_pane = ttk.PanedWindow(self.root, orient=VERTICAL)
         vertical_pane.grid(row=0, column=0, sticky="nsew")
 
@@ -232,6 +236,7 @@ class Cmd:
         self.protocol = ''
         self.collation = ''
         self.argv = argv
+        self.settings = Settings()
 
         try:
             opts, args = getopt.getopt(self.argv, "hp:z:", ["protokol=", "zestawienie="])
@@ -270,6 +275,7 @@ class Analyzer:
         self.collation = {}
         self.protocol = {}
 
+    def analyze_normal_mode(self):
         logger.log(logging.INFO, "----Analiza----")
         if not self.get_sheets():
             logger.log(logging.INFO, "----Analiza zakończona błędem----")
@@ -284,6 +290,23 @@ class Analyzer:
             return
 
         logger.log(logging.INFO, "----Koniec analizy----")
+
+    def analyze_retard_mode(self):
+        logger.log(logging.INFO, "----Analiza----")
+        if not self.get_sheets():
+            logger.log(logging.INFO, "----Analiza zakończona błędem----")
+            return
+
+        if not self.get_objects():
+            logger.log(logging.INFO, "----Analiza zakończona błędem----")
+            return
+
+        if not self.analyze():
+            logger.log(logging.INFO, "----Analiza zakończona błędem----")
+            return
+
+        logger.log(logging.INFO, "----Koniec analizy----")
+
 
     def get_sheets(self):
         try:
@@ -313,21 +336,23 @@ class Analyzer:
             if number == 'None':
                 continue
 
-            str_names = row[self.settings.protocol_names_column()].value
+            str_names = str(row[self.settings.protocol_names_column()].value)
             # Split string to list
-            split_names = str_names.split('\n')
+            split_names = str_names#.split('\n')
             # Remove white spaces
-            split_names = [n.strip() for n in split_names]
+            #split_names = [n.strip() for n in split_names]
             # Remove empty strings (new lines)
-            split_names = [n for n in split_names if n != '']
+            #split_names = [n for n in split_names if n != '']
 
             if number in self.protocol:
                 new_list = self.protocol[number].names
-                new_list.extend(split_names)
+                new_list.append(split_names)
                 new_list = list(dict.fromkeys(new_list))
                 self.protocol[number].names = new_list
             else:
-                self.protocol[number] = Protocol(number, split_names, row[self.settings.protocol_number_column()].row)
+                temp = []
+                temp.append(split_names)
+                self.protocol[number] = Protocol(number, temp, row[self.settings.protocol_number_column()].row)
 
         # Collation
         current_row = 0
@@ -337,7 +362,7 @@ class Analyzer:
             current_row += 1
             try:
                 name = row[self.settings.collation_name_column()].value.rstrip()
-                str_plot_numbers = row[self.settings.collation_numbers_column()].value
+                str_plot_numbers = str(row[self.settings.collation_numbers_column()].value)
                 # Split string to list
                 list_plot_numbers = str_plot_numbers.split(",")
                 # Remove white spaces
@@ -381,7 +406,7 @@ class Analyzer:
                 elif name not in self.protocol[num].names:
                     logger.log(logging.ERROR,
                                "Nazwisko " + name + " nie widnieje w protokole dla pozycji " + str(num) + " w zestawieniu; Linia w protokole: " + str(collation.row))
-
+        return True
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
