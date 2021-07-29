@@ -50,25 +50,31 @@ class Collation:
 
 class Settings:
     def __init__(self):
-        self.protocol_number_column_data = StringVar(value="A")
-        self.protocol_names_column_data = StringVar(value="C")
-        self.collation_name_column_data = StringVar(value="B")
-        self.collation_numbers_column_data = StringVar(value="C")
+        self.__protocol_number_column_data: str = "A"
+        self.__protocol_names_column_data: str = "C"
+        self.__collation_name_column_data: str = "B"
+        self.__collation_numbers_column_data: str = "C"
 
-    def convert_to_iterator(self, string):
+    def __convert_to_iterator(self, string: str):
         return ord(string.lower()) - 97
 
+    def update_settings(self, pro_num_col: str, pro_name_col: str, coll_name_col: str, coll_num_col: str):
+        self.__protocol_number_column_data = pro_num_col
+        self.__protocol_names_column_data = pro_name_col
+        self.__collation_name_column_data = coll_name_col
+        self.__collation_numbers_column_data = coll_num_col
+
     def protocol_number_column(self):
-        return self.convert_to_iterator(self.protocol_number_column_data.get())
+        return self.__convert_to_iterator(self.__protocol_number_column_data)
 
     def protocol_names_column(self):
-        return self.convert_to_iterator(self.protocol_names_column_data.get())
+        return self.__convert_to_iterator(self.__protocol_names_column_data)
 
     def collation_name_column(self):
-        return self.convert_to_iterator(self.collation_name_column_data.get())
+        return self.__convert_to_iterator(self.__collation_name_column_data)
 
     def collation_numbers_column(self):
-        return self.convert_to_iterator(self.collation_numbers_column_data.get())
+        return self.__convert_to_iterator(self.__collation_numbers_column_data)
 
 
 # UI
@@ -160,13 +166,18 @@ class ConsoleUI:
 
 
 class SettingsUI:
-    def __init__(self, frame, settings):
-        self.frame = frame
-        self.settings = settings
+    def __init__(self, frame, settings: Settings):
+        self.__frame = frame
+        self.__settings = settings
 
-        validate_callback = self.frame.register(self.validate_input)
+        callback = self.__frame.register(self.callback_function)
 
-        column_names_frame = ttk.LabelFrame(self.frame, text="Kolumny")
+        self.__protocol_names_column_data = StringVar()
+        self.__collation_name_column_data = StringVar()
+        self.__protocol_number_column_data = StringVar()
+        self.__collation_numbers_column_data = StringVar()
+
+        column_names_frame = ttk.LabelFrame(self.__frame, text="Kolumny")
         column_names_frame.columnconfigure(1, weight=1)
         column_names_frame.columnconfigure(2, weight=1)
         column_names_frame.grid(padx=10, pady=10, sticky=(W, E))
@@ -175,20 +186,35 @@ class SettingsUI:
         Label(column_names_frame, text='Zestawienie').grid(column=2, row=0)
         Label(column_names_frame, text='Imię/Imiona').grid(column=0, row=1)
         Label(column_names_frame, text='Numer/y').grid(column=0, row=2)
-        Entry(column_names_frame, textvariable=self.settings.protocol_names_column_data, validate="key",
-                    validatecommand=(validate_callback, '%S')).grid(column=1, row=1, sticky=(E, W))
-        Entry(column_names_frame, textvariable=self.settings.collation_name_column_data, validate="key",
-                    validatecommand=(validate_callback, '%S')).grid(column=2, row=1, sticky=(E, W))
-        Entry(column_names_frame, textvariable=self.settings.protocol_number_column_data, validate="key",
-                    validatecommand=(validate_callback, '%S')).grid(column=1, row=2, sticky=(E, W))
-        Entry(column_names_frame, textvariable=self.settings.collation_numbers_column_data, validate="key",
-                    validatecommand=(validate_callback, '%S')).grid(column=2, row=2, sticky=(E, W))
+        Entry(column_names_frame,
+              textvariable=self.__protocol_names_column_data,
+              validate="key",
+              validatecommand=(callback, '%S')).grid(column=1, row=1, sticky=(E, W))
+        Entry(column_names_frame,
+              textvariable=self.__collation_name_column_data,
+              validate="key",
+              validatecommand=(callback, '%S')).grid(column=2, row=1, sticky=(E, W))
+        Entry(column_names_frame,
+              textvariable=self.__protocol_number_column_data,
+              validate="key",
+              validatecommand=(callback, '%S')).grid(column=1, row=2, sticky=(E, W))
+        Entry(column_names_frame,
+              textvariable=self.__collation_numbers_column_data,
+              validate="key",
+              validatecommand=(callback, '%S')).grid(column=2, row=2, sticky=(E, W))
 
-    def validate_input(self, input_string):
+    def callback_function(self, input_string: str):
         if input_string.isalpha():
+            self.update_settings()
             return True
         else:
             return False
+
+    def update_settings(self):
+        self.__settings.update_settings(self.__protocol_number_column_data.get(),
+                                      self.__protocol_names_column_data.get(),
+                                      self.__collation_name_column_data.get(),
+                                      self.__collation_numbers_column_data.get())
 
 
 class App:
@@ -232,6 +258,7 @@ class Cmd:
         self.protocol = ''
         self.collation = ''
         self.argv = argv
+        self.__settings = Settings()
 
         try:
             opts, args = getopt.getopt(self.argv, "hp:z:", ["protokol=", "zestawienie="])
@@ -255,17 +282,17 @@ class Cmd:
                     print("Podana sciezka dla protokolu nie jest plikiem excel (.xlsx)")
                     sys.exit()
 
-        Analyzer(self.protocol, self.collation)
+        Analyzer(self.protocol, self.collation, self.__settings)
 
 
 class Analyzer:
-    def __init__(self, protocol_path, collation_path, settings):
-        self.protocol_path = protocol_path
-        self.collation_path = collation_path
-        self.settings = settings
+    def __init__(self, protocol_path: str, collation_path: str, settings: Settings):
+        self.__protocol_path = protocol_path
+        self.__collation_path = collation_path
+        self.__settings = settings
 
-        self.sheet_protocol = any
-        self.sheet_collation = any
+        self.__sheet_protocol: openpyxl.workbook.workbook.Worksheet
+        self.__sheet_collation: openpyxl.workbook.workbook.Worksheet
 
         self.collation = {}
         self.protocol = {}
@@ -287,33 +314,33 @@ class Analyzer:
 
     def get_sheets(self):
         try:
-            wb_protocol = openpyxl.open(self.protocol_path)
+            wb_protocol = openpyxl.open(self.__protocol_path)
         except:
             logger.log(logging.ERROR, "Nie można otworzyć pliku protokołu")
             return False
 
         try:
-            wb_collation = openpyxl.open(self.collation_path)
+            wb_collation = openpyxl.open(self.__collation_path)
         except:
             logger.log(logging.ERROR, "Nie można otworzyć pliku zestawienia")
             return False
 
-        self.sheet_protocol = wb_protocol[wb_protocol.sheetnames[0]]
-        self.sheet_collation = wb_collation[wb_collation.sheetnames[0]]
+        self.__sheet_protocol = wb_protocol[wb_protocol.sheetnames[0]]
+        self.__sheet_collation = wb_collation[wb_collation.sheetnames[0]]
 
         return True
 
     def get_objects(self):
 
         # Protocol
-        rows_from_sheet = self.sheet_protocol.iter_rows()
+        rows_from_sheet = self.__sheet_protocol.iter_rows()
         rows = iter(rows_from_sheet)
         for row in rows:
-            number = str(row[self.settings.protocol_number_column()].value)
+            number = str(row[self.__settings.protocol_number_column()].value)
             if number == 'None':
                 continue
 
-            str_names = row[self.settings.protocol_names_column()].value
+            str_names = row[self.__settings.protocol_names_column()].value
             # Split string to list
             split_names = str_names.split('\n')
             # Remove white spaces
@@ -327,17 +354,17 @@ class Analyzer:
                 new_list = list(dict.fromkeys(new_list))
                 self.protocol[number].names = new_list
             else:
-                self.protocol[number] = Protocol(number, split_names, row[self.settings.protocol_number_column()].row)
+                self.protocol[number] = Protocol(number, split_names, row[self.__settings.protocol_number_column()].row)
 
         # Collation
         current_row = 0
-        rows_from_sheet = self.sheet_collation.iter_rows()
+        rows_from_sheet = self.__sheet_collation.iter_rows()
         rows = iter(rows_from_sheet)
         for row in rows:
             current_row += 1
             try:
-                name = row[self.settings.collation_name_column()].value.rstrip()
-                str_plot_numbers = row[self.settings.collation_numbers_column()].value
+                name = row[self.__settings.collation_name_column()].value.rstrip()
+                str_plot_numbers = row[self.__settings.collation_numbers_column()].value
                 # Split string to list
                 list_plot_numbers = str_plot_numbers.split(",")
                 # Remove white spaces
@@ -347,8 +374,8 @@ class Analyzer:
                 if name in self.collation:
                     self.collation[name].add_positions(list_plot_numbers)
                 else:
-                    self.collation[name] = Collation(row[self.settings.collation_name_column()].value,
-                                                     list_plot_numbers, row[self.settings.collation_name_column()].row)
+                    self.collation[name] = Collation(row[self.__settings.collation_name_column()].value,
+                                                     list_plot_numbers, row[self.__settings.collation_name_column()].row)
             except:
                 logger.log(logging.ERROR, "Błąd parsowania pliku zestawienia dla wiersza " + str(current_row))
 
@@ -366,7 +393,8 @@ class Analyzer:
                         not_found = 0
 
                 if not_found == -1:
-                    msg = "Brakujaca pozycja " + position.number + " z protokołu dla nazwiska " + name + " w zestawieniu.; Linia w zestawieniu: " + str(self.collation[name].row)
+                    msg = "Brakujaca pozycja " + position.number + " z protokołu dla nazwiska " + name + " w zestawieniu.; Linia w zestawieniu: " + str(
+                        self.collation[name].row)
                     logger.log(logging.ERROR, msg)
                 elif not_found == -2:
                     msg = "Brakujace nazwisko " + name + " w zestawieniu" + "; " \
@@ -377,10 +405,12 @@ class Analyzer:
             for num in collation.numbers:
                 if num not in self.protocol:
                     logger.log(logging.ERROR,
-                               "Nieistniejąca pozycja " + str(num) + " protokołu w zestawieniu; Linia w protokole: " + str(collation.row))
+                               "Nieistniejąca pozycja " + str(
+                                   num) + " protokołu w zestawieniu; Linia w protokole: " + str(collation.row))
                 elif name not in self.protocol[num].names:
                     logger.log(logging.ERROR,
-                               "Nazwisko " + name + " nie widnieje w protokole dla pozycji " + str(num) + " w zestawieniu; Linia w protokole: " + str(collation.row))
+                               "Nazwisko " + name + " nie widnieje w protokole dla pozycji " + str(
+                                   num) + " w zestawieniu; Linia w protokole: " + str(collation.row))
 
 
 if __name__ == "__main__":
